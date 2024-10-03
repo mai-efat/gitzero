@@ -1,43 +1,34 @@
-# Use the official PHP image with Apache
-FROM php:8.2-apache
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    libpng-dev \
-    libjpeg-dev \
-    libfreetype6-dev \
-    libzip-dev \
-    unzip \
-    git \
-    && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install gd zip
-
-# Enable Apache Rewrite Module
-RUN a2enmod rewrite
+#step 1: Build the Nuxt.js application
+FROM node:16 AS builder
 
 # Set the working directory
-WORKDIR /var/www/html
+WORKDIR /app
 
-# Copy composer.lock and composer.json
-COPY composer.lock composer.json ./
+# Copy package.json and package-lock.json
+COPY package*.json ./
 
-# Install Composer
-RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
-
-# Install PHP dependencies
-RUN composer install --no-scripts --no-autoloader
+# Install dependencies
+RUN npm install
 
 # Copy the rest of the application code
 COPY . .
 
-# Generate the autoload files
-RUN composer dump-autoload
+# Build the Nuxt.js application
+RUN npm run build
 
-# Set permissions for storage and bootstrap/cache
-RUN chown -R www-data:www-data storage bootstrap/cache
+# Step 2: Set up the Nuxt.js application
+FROM node:16
 
-# Expose port 80
-EXPOSE 80
+WORKDIR /app
 
-# Start the Apache server
-CMD ["apache2-foreground"]
+# Copy only the necessary files from the builder
+COPY --from=builder /app .
+
+# Install production dependencies
+RUN npm install --production
+
+# Expose the application port (default is 3000)
+EXPOSE 3000
+
+# Start the Nuxt.js application
+CMD ["npm", "start"]
